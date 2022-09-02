@@ -16,6 +16,11 @@
     <PackageProjectUrl>https://github.com/libplctag/libplctag.NET</PackageProjectUrl>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile />
+    <OutputPath>C:\LotusAPI\bin\</OutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="runtime\osx_x64\libplctag.dylib" />
     <EmbeddedResource Include="runtime\osx_ARM64\libplctag.dylib" />

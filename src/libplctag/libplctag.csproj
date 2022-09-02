@@ -17,6 +17,11 @@
     <PackageTags></PackageTags>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>C:\LotusAPI\bin\</OutputPath>
+    <DocumentationFile />
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="libplctag.NativeImport" Version="1.0.32" />
   </ItemGroup>
