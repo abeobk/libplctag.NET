@@ -21,6 +21,11 @@
     <OutputPath>C:\LotusAPI\bin\</OutputPath>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DocumentationFile />
+    <OutputPath>C:\LotusAPI\bin\</OutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="runtime\osx_x64\libplctag.dylib" />
     <EmbeddedResource Include="runtime\osx_ARM64\libplctag.dylib" />
