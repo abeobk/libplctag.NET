@@ -304,11 +304,7 @@ namespace LotusAPI.HW {
                             Logger.Error($"PLC[{Name}] took long time to read! ({sw.ElapsedMilliseconds}ms)");
                         }
 
-
-                        //await delay;
-                        //update IO
-                    } catch(System.IO.IOException ex) {
-
+                    } catch(Exception ex) {
                         LotusAPI.Logger.Error(ex.Message);
 
                         if(!NetUtils.PingHost(IP)) {
@@ -317,9 +313,6 @@ namespace LotusAPI.HW {
                             Disconnect();
                             goto ThreadExit_;
                         }
-
-                    } catch(Exception ex) {
-                        LotusAPI.Logger.Error(ex.Message);
                     }
 
                     System.Threading.Thread.Sleep(System.Math.Max(1, (int)(PollInterval - sw.ElapsedMilliseconds)));
