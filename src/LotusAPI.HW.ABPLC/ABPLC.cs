@@ -91,6 +91,7 @@ namespace LotusAPI.HW {
                 default:
                     throw new Exception($"Invalid data type ({elem_type})");
             }
+            Logger.Debug($"Initializing tag [{elem_type}: {addr}]");
             tag?.Initialize();
             return tag;
         }
@@ -122,7 +123,6 @@ namespace LotusAPI.HW {
                 }
                 else throw new Exception($"Invalid address format: {tag_addr}");
             }
-            tags.ForEach(t => t.Initialize());
             return tags;
         }
 
