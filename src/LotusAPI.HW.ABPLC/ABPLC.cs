@@ -45,6 +45,9 @@ namespace LotusAPI.HW {
             public Property_<int> PollInterval { get; } = new Property_<int>(200, "GENERAL", WriteProtectionType.AskForConfirmation);
             public Property_<bool> Debug { get; } = new Property_<bool>(false, "GENERAL", WriteProtectionType.AskForPermission);
             public Property_<int> ReadWriteTimeout { get; } = new Property_<int>(1000, "GENERAL", WriteProtectionType.AskForConfirmation);
+            public Property_<bool> AutoReconnect { get; } = new Property_<bool>(true, "GENERAL", WriteProtectionType.AskForPermission);
+            public Property_<int> ReconnectInterval { get; } = new Property_<int>(5000, "GENERAL", WriteProtectionType.AskForPermission);
+            public Property_<int> ConnectingLingerTimeout { get; } = new Property_<int>(60000, "GENERAL", WriteProtectionType.AskForPermission);
 
             public MySetting() { }
             public MySetting(string path = "ABPLC") {
@@ -62,7 +65,9 @@ namespace LotusAPI.HW {
         string OutputDevice => ((MySetting)Setting).OutputDevice;
         int Timeout => ((MySetting)Setting).ReadWriteTimeout;
         bool Debug => ((MySetting)Setting).Debug;
-
+        bool AutoReconnect => (bool)((MySetting)Setting).AutoReconnect;
+        int ReconnectInterval => ((MySetting)Setting).ReconnectInterval;
+        int ConnectionLingerTimeout => ((MySetting)Setting).ConnectingLingerTimeout;
         bool IOPolling => ((MySetting)Setting).IOPolling;
         public override List<IPLC.MemoryBlock> MemoryBlocks => ((MySetting)Setting).MemoryBlocks;
 
@@ -161,27 +166,31 @@ namespace LotusAPI.HW {
 
         public override void Invalidate() {
             lock(locker) {
-                InputTag = null;
-                OutputTag = null;
-                Logger.Debug("Initializing PLC tags...");
-                Logger.Debug($"Creating input tag  ({InputDevice})...");
-                InputTag = _CreateInputTag();
-                Logger.Debug($"Creating output tag ({OutputDevice})...");
-                OutputTag = _CreateOutputTag();
+                try {
+                    InputTag = null;
+                    OutputTag = null;
+                    Logger.Debug("Initializing PLC tags...");
+                    Logger.Debug($"Creating input tag  ({InputDevice})...");
+                    InputTag = _CreateInputTag();
+                    Logger.Debug($"Creating output tag ({OutputDevice})...");
+                    OutputTag = _CreateOutputTag();
 
-                int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
-                Logger.Debug($"IO byte count: {io_byte_cnt}");
-                DIbits.ByteCount = io_byte_cnt;
-                DObits.ByteCount = io_byte_cnt;
+                    int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
+                    Logger.Debug($"IO byte count: {io_byte_cnt}");
+                    DIbits.ByteCount = io_byte_cnt;
+                    DObits.ByteCount = io_byte_cnt;
 
-                //pollRate
-                PollInterval.Set(((MySetting)Setting).PollInterval);
+                    //pollRate
+                    PollInterval.Set(((MySetting)Setting).PollInterval);
 
-                _blockTags.Clear();
-                foreach(var block in MemoryBlocks) {
-                    if(_blockTags.ContainsKey(block.Name)) throw new Exception($"Duplicate block name [{block.Name}]");
-                    Logger.Debug($"Creating memory block tags [{block.Name}: {block.BaseAddress}]...");
-                    _blockTags.Add(block.Name, _CreateTagList(BlockElemType, block.BaseAddress));
+                    _blockTags.Clear();
+                    foreach(var block in MemoryBlocks) {
+                        if(_blockTags.ContainsKey(block.Name)) throw new Exception($"Duplicate block name [{block.Name}]");
+                        Logger.Debug($"Creating memory block tags [{block.Name}: {block.BaseAddress}]...");
+                        _blockTags.Add(block.Name, _CreateTagList(BlockElemType, block.BaseAddress));
+                    }
+                } catch(Exception ex) {
+                    Logger.Error(ex.Message);
                 }
             }
         }
@@ -252,13 +261,6 @@ namespace LotusAPI.HW {
             Stop();
             shouldStop.Set(false);
             Paused.Set(false);
-            if(InputTag == null) throw new Exception($"[{Name}] Input tag is null");
-            if(OutputTag == null) throw new Exception($"[{Name}] Output tag is null");
-            foreach(var tags in _blockTags) {
-                foreach(var tag in tags.Value) { 
-                    if(tag == null) throw new Exception($"[{Name}] Memory block tag ({tag.Name}) is null");
-                }
-            }
 
             Logger.Debug($"PLC[{Name}] Starting polling thread...");
             pollThread = new Thread(() => {
@@ -267,23 +269,6 @@ namespace LotusAPI.HW {
                     try {
                         if(shouldStop) { goto ThreadExit_; }
 
-                        ////check if connection still alive
-                        //if(!IsConnected) {
-                        //    if(!AutoReconnect) {
-                        //        goto ThreadExit_;
-                        //    }
-                        //    else {
-                        //        Logger.Debug($"PLC[{Name}] Trying to reconnect to {IP}:{Port}...");
-                        //        if(!_Connect()) {
-                        //            sw.Restart();
-                        //            while(sw.ElapsedMilliseconds < ReconnectInterval) {
-                        //                if(shouldStop) { goto ThreadExit_; }
-                        //                Thread.Sleep(10);
-                        //            }
-                        //            goto Begin_;
-                        //        }
-                        //    }
-                        //}
                         //pausing
                         while(shouldPause) {
                             if(!Paused) Logger.Debug($"PLC[{Name}] Polling thread paused.");
@@ -313,11 +298,30 @@ namespace LotusAPI.HW {
                         LotusAPI.Logger.Error(ex.Message);
                         LotusAPI.Logger.Debug(ex.StackTrace);
 
+                        Thread.Sleep(1000);
                         if(!NetUtils.PingHost(IP)) {
                             Logger.Error("Connection lost!");
                             IsConnected = false;
                             DisconnectedEvent?.Invoke();
+                        }
+
+                        if(!AutoReconnect) {
                             goto ThreadExit_;
+                        }
+                        else {
+                            while(!NetUtils.PingHost(IP)) {
+                                Logger.Debug($"PLC[{Name}] Trying to reconnect to {IP}...");
+                                sw.Restart();
+                                while(sw.ElapsedMilliseconds < ReconnectInterval) {
+                                    if(shouldStop) { goto ThreadExit_; }
+                                    Thread.Sleep(10);
+                                }
+                            }
+                            if(NetUtils.PingHost(IP)) {
+                                Logger.Info($"PLC[{Name}] connected");
+                                this.ConnectedEvent?.Invoke($"PLC[{Name}]({IP}: Path=[{Path}])");
+                                IsConnected = true;
+                            }
                         }
                     }
 
@@ -356,7 +360,11 @@ namespace LotusAPI.HW {
         public override uint ReadDI() {
             AssertConnected();
             lock(locker) {
-                if(InputTag == null) throw new Exception("Input tag is null!");
+                if(InputTag == null) {
+                    DisconnectedEvent?.Invoke();
+                    IsConnected = false;
+                    throw new Exception("Input tag is null!");
+                }
                 //read DI tag
                 var value = InputTag?.Read();
 
@@ -379,7 +387,11 @@ namespace LotusAPI.HW {
         public void WriteDO() {
             AssertConnected();
             lock(locker) {
-                if(OutputTag == null) throw new Exception("Output tag is null!");
+                if(OutputTag == null) {
+                    DisconnectedEvent?.Invoke();
+                    IsConnected = false;
+                    throw new Exception("Output tag is null!");
+                }
                 switch(IOElemType) {
                     case ElementType.Int16: OutputTag.Value = BitConverter.ToInt16(DObits.Data, 0); break;
                     case ElementType.UInt16: OutputTag.Value = BitConverter.ToUInt16(DObits.Data, 0); break;
@@ -400,7 +412,11 @@ namespace LotusAPI.HW {
         public override void ReadBlock(IPLC.MemoryBlock block) {
             AssertConnected();
             lock(locker) {
-                if(!_blockTags.ContainsKey(block.Name)) throw new Exception($"Invalid block tags ({block.Name})");
+                if(!_blockTags.ContainsKey(block.Name)) {
+                    DisconnectedEvent?.Invoke();
+                    IsConnected = false;
+                    throw new Exception($"Invalid block tags ({block.Name})");
+                }
                 var tags = _blockTags[block.Name];
                 PacketBuilder pkt = new PacketBuilder();
                 foreach(var tag in tags) {
@@ -426,7 +442,11 @@ namespace LotusAPI.HW {
         public override void WriteBlock(IPLC.MemoryBlock block) {
             AssertConnected();
             lock(locker) {
-                if(!_blockTags.ContainsKey(block.Name)) throw new Exception($"Invalid block tags ({block.Name})");
+                if(!_blockTags.ContainsKey(block.Name)) {
+                    DisconnectedEvent?.Invoke();
+                    IsConnected = false;
+                    throw new Exception($"Invalid block tags ({block.Name})");
+                }
                 var tags = _blockTags[block.Name];
                 PacketBuilder pkt = new PacketBuilder();
                 pkt.Buffer = block.Data.ToList();
