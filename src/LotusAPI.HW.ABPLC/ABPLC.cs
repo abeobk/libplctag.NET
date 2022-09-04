@@ -161,30 +161,28 @@ namespace LotusAPI.HW {
 
         public override void Invalidate() {
             lock(locker) {
-                try {
-                    InputTag = null;
-                    OutputTag = null;
-                    Logger.Debug("Initializing PLC tags...");
-                    Logger.Debug($"Creating input tag  ({InputDevice})...");
-                    InputTag = _CreateInputTag();
-                    Logger.Debug($"Creating output tag ({OutputDevice})...");
-                    OutputTag = _CreateOutputTag();
+                InputTag = null;
+                OutputTag = null;
+                Logger.Debug("Initializing PLC tags...");
+                Logger.Debug($"Creating input tag  ({InputDevice})...");
+                InputTag = _CreateInputTag();
+                Logger.Debug($"Creating output tag ({OutputDevice})...");
+                OutputTag = _CreateOutputTag();
 
-                    int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
-                    Logger.Debug($"IO byte count: {io_byte_cnt}");
-                    DIbits.ByteCount = io_byte_cnt;
-                    DObits.ByteCount = io_byte_cnt;
+                int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
+                Logger.Debug($"IO byte count: {io_byte_cnt}");
+                DIbits.ByteCount = io_byte_cnt;
+                DObits.ByteCount = io_byte_cnt;
 
-                    //pollRate
-                    PollInterval.Set(((MySetting)Setting).PollInterval);
+                //pollRate
+                PollInterval.Set(((MySetting)Setting).PollInterval);
 
-                    _blockTags.Clear();
-                    foreach(var block in MemoryBlocks) {
-                        if(_blockTags.ContainsKey(block.Name)) throw new Exception($"Duplicate block name [{block.Name}]");
-                        Logger.Debug($"Creating memory block tags [{block.Name}: {block.BaseAddress}]...");
-                        _blockTags.Add(block.Name, _CreateTagList(BlockElemType, block.BaseAddress));
-                    }
-                } catch(Exception ex) { LotusAPI.Logger.Error(ex.Message); }
+                _blockTags.Clear();
+                foreach(var block in MemoryBlocks) {
+                    if(_blockTags.ContainsKey(block.Name)) throw new Exception($"Duplicate block name [{block.Name}]");
+                    Logger.Debug($"Creating memory block tags [{block.Name}: {block.BaseAddress}]...");
+                    _blockTags.Add(block.Name, _CreateTagList(BlockElemType, block.BaseAddress));
+                }
             }
         }
 
@@ -254,6 +252,13 @@ namespace LotusAPI.HW {
             Stop();
             shouldStop.Set(false);
             Paused.Set(false);
+            if(InputTag == null) throw new Exception($"[{Name}] Input tag is null");
+            if(OutputTag == null) throw new Exception($"[{Name}] Output tag is null");
+            foreach(var tags in _blockTags) {
+                foreach(var tag in tags.Value) { 
+                    if(tag == null) throw new Exception($"[{Name}] Memory block tag ({tag.Name}) is null");
+                }
+            }
 
             Logger.Debug($"PLC[{Name}] Starting polling thread...");
             pollThread = new Thread(() => {
@@ -306,11 +311,12 @@ namespace LotusAPI.HW {
 
                     } catch(Exception ex) {
                         LotusAPI.Logger.Error(ex.Message);
+                        LotusAPI.Logger.Debug(ex.StackTrace);
 
                         if(!NetUtils.PingHost(IP)) {
-                            //IsConnected = false;
-                            //DisconnectedEvent?.Invoke();
-                            Disconnect();
+                            Logger.Error("Connection lost!");
+                            IsConnected = false;
+                            DisconnectedEvent?.Invoke();
                             goto ThreadExit_;
                         }
                     }
