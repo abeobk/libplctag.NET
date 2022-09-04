@@ -45,9 +45,9 @@ namespace LotusAPI.HW {
             public Property_<int> PollInterval { get; } = new Property_<int>(200, "GENERAL", WriteProtectionType.AskForConfirmation);
             public Property_<bool> Debug { get; } = new Property_<bool>(false, "GENERAL", WriteProtectionType.AskForPermission);
             public Property_<int> ReadWriteTimeout { get; } = new Property_<int>(1000, "GENERAL", WriteProtectionType.AskForConfirmation);
-            public Property_<bool> AutoReconnect { get; } = new Property_<bool>(true, "GENERAL", WriteProtectionType.AskForPermission);
-            public Property_<int> ReconnectInterval { get; } = new Property_<int>(5000, "GENERAL", WriteProtectionType.AskForPermission);
-            public Property_<int> ConnectingLingerTimeout { get; } = new Property_<int>(60000, "GENERAL", WriteProtectionType.AskForPermission);
+            public Property_<bool> AutoReconnect { get; } = new Property_<bool>(true, "NETWORK", WriteProtectionType.AskForPermission);
+            public Property_<int> ReconnectInterval { get; } = new Property_<int>(5000, "NETWORK", WriteProtectionType.AskForPermission);
+            //public Property_<int> ConnectingLingerTimeout { get; } = new Property_<int>(60000, "GENERAL", WriteProtectionType.AskForPermission);
 
             public MySetting() { }
             public MySetting(string path = "ABPLC") {
@@ -67,7 +67,7 @@ namespace LotusAPI.HW {
         bool Debug => ((MySetting)Setting).Debug;
         bool AutoReconnect => (bool)((MySetting)Setting).AutoReconnect;
         int ReconnectInterval => ((MySetting)Setting).ReconnectInterval;
-        int ConnectionLingerTimeout => ((MySetting)Setting).ConnectingLingerTimeout;
+        //int ConnectionLingerTimeout => ((MySetting)Setting).ConnectingLingerTimeout;
         bool IOPolling => ((MySetting)Setting).IOPolling;
         public override List<IPLC.MemoryBlock> MemoryBlocks => ((MySetting)Setting).MemoryBlocks;
 
