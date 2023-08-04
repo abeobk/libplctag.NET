@@ -76,13 +76,14 @@ namespace LotusAPI.HW {
             var pins = PinMap.Pins.FindAll(p => p.Function == func && p.Index >= 0 && p.Index < 32);
             Dictionary<int, Tag<BoolPlcMapper, bool>> tags = new Dictionary<int, Tag<BoolPlcMapper, bool>>();
             foreach(var pin in pins) {
-                var tag = new Tag<BoolPlcMapper, bool> { 
-                    Name= addr + "." + pin.Name,
+                var tag = new Tag<BoolPlcMapper, bool> {
+                    Name = addr + "." + pin.Name,
                     Gateway = this.IP,
-                    Path = this.Path, 
-                    PlcType = this.PlcType, 
-                    Protocol = this.Protocol, 
-                    Timeout = TimeSpan.FromMilliseconds(this.Timeout) };
+                    Path = this.Path,
+                    PlcType = this.PlcType,
+                    Protocol = this.Protocol,
+                    Timeout = TimeSpan.FromMilliseconds(this.Timeout)
+                };
                 tags.Add(pin.Index, tag);
                 Logger.Debug("Initializing BOOL tag: " + tag.Name);
                 tag?.Initialize();
@@ -123,26 +124,50 @@ namespace LotusAPI.HW {
 
         private static readonly Regex regex_addressRange = new Regex(@"(?<=\[)[0-9]+~[0-9]+(?=\])");
         private static readonly Regex regex_addressName = new Regex(@".+(?=\[)");
+        private static readonly Regex regex_addressListName = new Regex(@".+(?=\{)");
+        private static readonly Regex regex_addressListRange = new Regex(@"(?<=\{).*(?=\})");
         private static readonly Regex regex_removeWhiteSpace = new Regex(@"\s+");
 
         List<ITag> _CreateTagList(ElementType elem_type, string addrs) {
             //parse address
+            //tag1|tag2|tag3
+            //TAG.TAG.{A,B,C,D}
+            //TAG.TAG.[id0~id1]
             var addr = addrs.Replace(" ", "");
             var tag_addrs = addr.Split('|');
             var tags = new List<ITag>();
 
             foreach(var tag_addr in tag_addrs) {
-                var matches = regex_addressRange.Matches(tag_addr);
-                if(matches.Count == 0) { tags.Add(_CreateTag(elem_type, tag_addr)); }
-                else if(matches.Count == 1) {
-                    var name_matches = regex_addressName.Matches(tag_addr);
-                    if(name_matches.Count != 1) throw new Exception($"Invalid base address name: {tag_addr}");
-                    var base_addr = name_matches[0].ToString();
-                    var nums = matches[0].ToString().Split('~');
-                    var id0 = int.Parse(nums[0]);
-                    var id1 = int.Parse(nums[1]);
-                    for(int id = id0; id <= id1; id++) {
-                        tags.Add(_CreateTag(elem_type, $"{base_addr}[{id}]"));
+                if(tag_addr.Contains("[")) {
+                    var matches = regex_addressRange.Matches(tag_addr);
+                    if(matches.Count == 0) { tags.Add(_CreateTag(elem_type, tag_addr)); }
+                    else if(matches.Count == 1) {
+                        var name_matches = regex_addressName.Matches(tag_addr);
+                        if(name_matches.Count != 1) throw new Exception($"Invalid base address name: {tag_addr}");
+                        var base_addr = name_matches[0].ToString();
+                        var nums = matches[0].ToString().Split('~');
+                        var id0 = int.Parse(nums[0]);
+                        var id1 = int.Parse(nums[1]);
+                        for(int id = id0; id <= id1; id++) {
+                            tags.Add(_CreateTag(elem_type, $"{base_addr}[{id}]"));
+                        }
+                    }
+                }
+                else if(tag_addr.Contains("{")) {
+                    var matches = regex_addressListRange.Matches(tag_addr);
+                    if(matches.Count == 0) {
+                        throw new Exception($"Invalid base address name: {tag_addr}");
+                    }
+                    else if(matches.Count == 1) {
+                        var name_matches = regex_addressListName.Matches(tag_addr);
+                        if(name_matches.Count != 1) throw new Exception($"Invalid base address name: {tag_addr}");
+                        var base_addr = name_matches[0].ToString();
+                        var ss = matches[0].Value.Split(',');
+                        foreach(var str in ss) {
+                            var s = str.Trim();
+                            if(s.Length == 0) continue;
+                            tags.Add(_CreateTag(elem_type, $"{base_addr}{s}"));
+                        }
                     }
                 }
                 else throw new Exception($"Invalid address format: {tag_addr}");
