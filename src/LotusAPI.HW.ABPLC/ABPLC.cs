@@ -24,6 +24,7 @@ namespace LotusAPI.HW {
         public enum ElementType {
             Int16 = 0, UInt16 = 1, //2   1<<((x/2)+1)
             Int32 = 2, UInt32 = 3, //4
+            BitTags = 4,
             //INT64 = 4, UINT64 = 5, //8
         }
 
@@ -71,6 +72,24 @@ namespace LotusAPI.HW {
         bool IOPolling => ((MySetting)Setting).IOPolling;
         public override List<IPLC.MemoryBlock> MemoryBlocks => ((MySetting)Setting).MemoryBlocks;
 
+        Dictionary<int, Tag<BoolPlcMapper, bool>> _CreateTags(PinFunc func, string addr) {
+            var pins = PinMap.Pins.FindAll(p => p.Function == func && p.Index >= 0 && p.Index < 32);
+            Dictionary<int, Tag<BoolPlcMapper, bool>> tags = new Dictionary<int, Tag<BoolPlcMapper, bool>>();
+            foreach(var pin in pins) {
+                var tag = new Tag<BoolPlcMapper, bool> { 
+                    Name= addr + "." + pin.Name,
+                    Gateway = this.IP,
+                    Path = this.Path, 
+                    PlcType = this.PlcType, 
+                    Protocol = this.Protocol, 
+                    Timeout = TimeSpan.FromMilliseconds(this.Timeout) };
+                tags.Add(pin.Index, tag);
+                Logger.Debug("Initializing BOOL tag: " + tag.Name);
+                tag?.Initialize();
+
+            }
+            return tags;
+        }
 
         ITag _CreateTag(ElementType elem_type, string addr) {
             ITag tag = null;
@@ -135,9 +154,13 @@ namespace LotusAPI.HW {
 
         ITag _CreateInputTag() => _CreateTag(IOElemType, InputDevice);
         ITag _CreateOutputTag() => _CreateTag(IOElemType, OutputDevice);
+
         Dictionary<string, List<ITag>> _blockTags = new Dictionary<string, List<ITag>>();
+
         ITag InputTag = null;
         ITag OutputTag = null;
+        Dictionary<int, Tag<BoolPlcMapper, bool>> InputTags = null;
+        Dictionary<int, Tag<BoolPlcMapper, bool>> OutputTags = null;
 
         public PlcAB(string name = "ABPLC") {
             Setting = new MySetting(name);
@@ -169,16 +192,31 @@ namespace LotusAPI.HW {
                 try {
                     InputTag = null;
                     OutputTag = null;
+                    InputTags = null;
+                    OutputTags = null;
                     Logger.Debug("Initializing PLC tags...");
-                    Logger.Debug($"Creating input tag  ({InputDevice})...");
-                    InputTag = _CreateInputTag();
-                    Logger.Debug($"Creating output tag ({OutputDevice})...");
-                    OutputTag = _CreateOutputTag();
+                    if(IOElemType == ElementType.BitTags) {
+                        Logger.Debug($"Creating input tags  ({InputDevice})...");
+                        InputTags = _CreateTags(PinFunc.DI, InputDevice);
+                        Logger.Debug($"Creating output tags ({OutputDevice})...");
+                        OutputTags = _CreateTags(PinFunc.DO, OutputDevice);
 
-                    int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
-                    Logger.Debug($"IO byte count: {io_byte_cnt}");
-                    DIbits.ByteCount = io_byte_cnt;
-                    DObits.ByteCount = io_byte_cnt;
+                        Logger.Debug($"IO byte count: {4}");
+                        DIbits.ByteCount = 4;
+                        DObits.ByteCount = 4;
+                    }
+                    else {
+                        Logger.Debug($"Creating input tag  ({InputDevice})...");
+                        InputTag = _CreateInputTag();
+                        Logger.Debug($"Creating output tag ({OutputDevice})...");
+                        OutputTag = _CreateOutputTag();
+
+                        int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
+                        Logger.Debug($"IO byte count: {io_byte_cnt}");
+                        DIbits.ByteCount = io_byte_cnt;
+                        DObits.ByteCount = io_byte_cnt;
+
+                    }
 
                     //pollRate
                     PollInterval.Set(((MySetting)Setting).PollInterval);
@@ -360,26 +398,39 @@ namespace LotusAPI.HW {
         public override uint ReadDI() {
             AssertConnected();
             lock(locker) {
-                if(InputTag == null) {
-                    DisconnectedEvent?.Invoke();
-                    IsConnected = false;
-                    throw new Exception("Input tag is null!");
+                if(IOElemType == ElementType.BitTags) {
+                    if(InputTags == null) {
+                        DisconnectedEvent?.Invoke();
+                        IsConnected = false;
+                        throw new Exception("Input tag is null!");
+                    }
+                    foreach(var tag in InputTags) {
+                        DIbits[tag.Key] = tag.Value.Read();
+                    }
+                    return BitConverter.ToUInt32(DIbits.Data, 0);
                 }
-                //read DI tag
-                var value = InputTag?.Read();
+                else {
+                    if(InputTag == null) {
+                        DisconnectedEvent?.Invoke();
+                        IsConnected = false;
+                        throw new Exception("Input tag is null!");
+                    }
+                    //read DI tag
+                    var value = InputTag?.Read();
 
-                switch(IOElemType) {
-                    case ElementType.Int16: DIbits.Data = BitConverter.GetBytes((Int16)value); break;
-                    case ElementType.UInt16: DIbits.Data = BitConverter.GetBytes((UInt16)value); break;
-                    case ElementType.Int32: DIbits.Data = BitConverter.GetBytes((Int32)value); break;
-                    case ElementType.UInt32: DIbits.Data = BitConverter.GetBytes((UInt32)value); break;
-                }
+                    switch(IOElemType) {
+                        case ElementType.Int16: DIbits.Data = BitConverter.GetBytes((Int16)value); break;
+                        case ElementType.UInt16: DIbits.Data = BitConverter.GetBytes((UInt16)value); break;
+                        case ElementType.Int32: DIbits.Data = BitConverter.GetBytes((Int32)value); break;
+                        case ElementType.UInt32: DIbits.Data = BitConverter.GetBytes((UInt32)value); break;
+                    }
 
-                if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [INPUT: {IOElemType}]: {value})"); }
-                switch(DIbits.ByteCount) {
-                    case 2: return (uint)BitConverter.ToUInt16(DIbits.Data, 0);
-                    case 4: return (uint)BitConverter.ToUInt32(DIbits.Data, 0);
-                    default: throw new Exception("Invalid input bit count. Only supported 16 or 32 bits");
+                    if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [INPUT: {IOElemType}]: {value})"); }
+                    switch(DIbits.ByteCount) {
+                        case 2: return (uint)BitConverter.ToUInt16(DIbits.Data, 0);
+                        case 4: return (uint)BitConverter.ToUInt32(DIbits.Data, 0);
+                        default: throw new Exception("Invalid input bit count. Only supported 16 or 32 bits");
+                    }
                 }
             }
         }
@@ -387,19 +438,31 @@ namespace LotusAPI.HW {
         public void WriteDO() {
             AssertConnected();
             lock(locker) {
-                if(OutputTag == null) {
-                    DisconnectedEvent?.Invoke();
-                    IsConnected = false;
-                    throw new Exception("Output tag is null!");
+                if(IOElemType == ElementType.BitTags) {
+                    if(OutputTags == null) {
+                        DisconnectedEvent?.Invoke();
+                        IsConnected = false;
+                        throw new Exception("Output tag is null!");
+                    }
+                    foreach(var tag in OutputTags) {
+                        tag.Value.Write(DObits[tag.Key]);
+                    }
                 }
-                switch(IOElemType) {
-                    case ElementType.Int16: OutputTag.Value = BitConverter.ToInt16(DObits.Data, 0); break;
-                    case ElementType.UInt16: OutputTag.Value = BitConverter.ToUInt16(DObits.Data, 0); break;
-                    case ElementType.Int32: OutputTag.Value = BitConverter.ToInt32(DObits.Data, 0); break;
-                    case ElementType.UInt32: OutputTag.Value = BitConverter.ToUInt32(DObits.Data, 0); break;
+                else {
+                    if(OutputTag == null) {
+                        DisconnectedEvent?.Invoke();
+                        IsConnected = false;
+                        throw new Exception("Output tag is null!");
+                    }
+                    switch(IOElemType) {
+                        case ElementType.Int16: OutputTag.Value = BitConverter.ToInt16(DObits.Data, 0); break;
+                        case ElementType.UInt16: OutputTag.Value = BitConverter.ToUInt16(DObits.Data, 0); break;
+                        case ElementType.Int32: OutputTag.Value = BitConverter.ToInt32(DObits.Data, 0); break;
+                        case ElementType.UInt32: OutputTag.Value = BitConverter.ToUInt32(DObits.Data, 0); break;
+                    }
+                    if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [OUTPUT: {IOElemType}]: {OutputTag.Value})"); }
+                    OutputTag.Write();
                 }
-                if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [OUTPUT: {IOElemType}]: {OutputTag.Value})"); }
-                OutputTag.Write();
             }
         }
 
