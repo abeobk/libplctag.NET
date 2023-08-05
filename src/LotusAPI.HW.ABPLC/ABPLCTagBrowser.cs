@@ -34,7 +34,9 @@ namespace LotusAPI.HW {
                 dt.Columns.Add("NAME", typeof(string));
                 dt.Columns.Add("LENGTH", typeof(int));
                 dt.Columns.Add("DIMS", typeof(string));
+                string filter = tb_Filter.Text.ToUpper();
                 foreach(var tag in tags.Value) {
+                    if(tag.Name.ToUpper().Contains(filter) == false) continue;
                     dt.Rows.Add(
                         tag.Id,
                         $"0x{tag.Type:X}",
