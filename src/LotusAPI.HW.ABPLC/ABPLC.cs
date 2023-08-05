@@ -1,5 +1,6 @@
 ﻿using libplctag;
 using libplctag.DataTypes;
+using libplctag.DataTypes.Simple;
 using LotusAPI;
 using LotusAPI.Controls.Editors;
 using LotusAPI.HW.PLC;
@@ -22,10 +23,8 @@ using LibPLC = libplctag;
 namespace LotusAPI.HW {
     public class PlcAB : PLCBase {
         public enum ElementType {
-            Int16 = 0, UInt16 = 1, //2   1<<((x/2)+1)
-            Int32 = 2, UInt32 = 3, //4
-            BitTags = 4,
-            //INT64 = 4, UINT64 = 5, //8
+            Int16 = 0,
+            Int32,
         }
 
         public class MySetting : SettingObject {
@@ -92,27 +91,47 @@ namespace LotusAPI.HW {
             return tags;
         }
 
-        ITag _CreateTag(ElementType elem_type, string addr) {
+
+
+        class TagInt16Arr : TagInt1D {
+            public bool IsArray => true;
+            public int Length { get; set; } = 0;
+        }
+        class TagInt32Arr : TagDint1D {
+            public bool IsArray => true;
+            public int Length { get; set; } = 0;
+        }
+        //class TagInt16: TagInt {
+        //    public bool IsArray => false;
+        //    public int Length { get; set; } = 0;
+        //}
+        //class TagInt32: TagDint {
+        //    public bool IsArray => false;
+        //    public int Length { get; set; } = 0;
+        //}
+
+
+        ITag _CreateTag(ElementType elem_type, string addr, bool is_array = false, int length = 0) {
             ITag tag = null;
+            if(is_array) {
+                switch(elem_type) {
+                    case ElementType.Int16:
+                        tag = new TagInt16Arr { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
+                        break;
+                    case ElementType.Int32:
+                        tag = new TagInt32Arr { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
+                        break;
+                    default:
+                        throw new Exception($"Invalid data type ({elem_type})");
+                }
+            }
             switch(elem_type) {
                 case ElementType.Int16:
                     tag = new Tag<Int16Mapper, Int16>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
                     break;
-                case ElementType.UInt16:
-                    tag = new Tag<UInt16Mapper, UInt16>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                    break;
                 case ElementType.Int32:
                     tag = new Tag<Int32Mapper, Int32>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
                     break;
-                case ElementType.UInt32:
-                    tag = new Tag<UInt32Mapper, UInt32>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                    break;
-                //case ElementType.INT64:
-                //    tag = new Tag<Int64Mapper, Int64>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                //    break;
-                //case ElementType.UINT64:
-                //    tag = new Tag<UInt64Mapper, UInt64>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                //    break;
                 default:
                     throw new Exception($"Invalid data type ({elem_type})");
             }
@@ -220,28 +239,16 @@ namespace LotusAPI.HW {
                     InputTags = null;
                     OutputTags = null;
                     Logger.Debug("Initializing PLC tags...");
-                    if(IOElemType == ElementType.BitTags) {
-                        Logger.Debug($"Creating input tags  ({InputDevice})...");
-                        InputTags = _CreateTags(PinFunc.DI, InputDevice);
-                        Logger.Debug($"Creating output tags ({OutputDevice})...");
-                        OutputTags = _CreateTags(PinFunc.DO, OutputDevice);
+                    Logger.Debug($"Creating input tag  ({InputDevice})...");
+                    InputTag = _CreateInputTag();
+                    Logger.Debug($"Creating output tag ({OutputDevice})...");
+                    OutputTag = _CreateOutputTag();
 
-                        Logger.Debug($"IO byte count: {4}");
-                        DIbits.ByteCount = 4;
-                        DObits.ByteCount = 4;
-                    }
-                    else {
-                        Logger.Debug($"Creating input tag  ({InputDevice})...");
-                        InputTag = _CreateInputTag();
-                        Logger.Debug($"Creating output tag ({OutputDevice})...");
-                        OutputTag = _CreateOutputTag();
+                    int io_byte_cnt = IOElemType == ElementType.Int16 ? 2 : 4;
+                    Logger.Debug($"IO byte count: {io_byte_cnt}");
+                    DIbits.ByteCount = io_byte_cnt;
+                    DObits.ByteCount = io_byte_cnt;
 
-                        int io_byte_cnt = 1 << (((int)IOElemType) / 2 + 1);
-                        Logger.Debug($"IO byte count: {io_byte_cnt}");
-                        DIbits.ByteCount = io_byte_cnt;
-                        DObits.ByteCount = io_byte_cnt;
-
-                    }
 
                     //pollRate
                     PollInterval.Set(((MySetting)Setting).PollInterval);
@@ -423,39 +430,24 @@ namespace LotusAPI.HW {
         public override uint ReadDI() {
             AssertConnected();
             lock(locker) {
-                if(IOElemType == ElementType.BitTags) {
-                    if(InputTags == null) {
-                        DisconnectedEvent?.Invoke();
-                        IsConnected = false;
-                        throw new Exception("Input tag is null!");
-                    }
-                    foreach(var tag in InputTags) {
-                        DIbits[tag.Key] = tag.Value.Read();
-                    }
-                    return BitConverter.ToUInt32(DIbits.Data, 0);
+                if(InputTag == null) {
+                    DisconnectedEvent?.Invoke();
+                    IsConnected = false;
+                    throw new Exception("Input tag is null!");
                 }
-                else {
-                    if(InputTag == null) {
-                        DisconnectedEvent?.Invoke();
-                        IsConnected = false;
-                        throw new Exception("Input tag is null!");
-                    }
-                    //read DI tag
-                    var value = InputTag?.Read();
+                //read DI tag
+                var value = InputTag?.Read();
 
-                    switch(IOElemType) {
-                        case ElementType.Int16: DIbits.Data = BitConverter.GetBytes((Int16)value); break;
-                        case ElementType.UInt16: DIbits.Data = BitConverter.GetBytes((UInt16)value); break;
-                        case ElementType.Int32: DIbits.Data = BitConverter.GetBytes((Int32)value); break;
-                        case ElementType.UInt32: DIbits.Data = BitConverter.GetBytes((UInt32)value); break;
-                    }
+                switch(IOElemType) {
+                    case ElementType.Int16: DIbits.Data = BitConverter.GetBytes((Int16)value); break;
+                    case ElementType.Int32: DIbits.Data = BitConverter.GetBytes((Int32)value); break;
+                }
 
-                    if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [INPUT: {IOElemType}]: {value})"); }
-                    switch(DIbits.ByteCount) {
-                        case 2: return (uint)BitConverter.ToUInt16(DIbits.Data, 0);
-                        case 4: return (uint)BitConverter.ToUInt32(DIbits.Data, 0);
-                        default: throw new Exception("Invalid input bit count. Only supported 16 or 32 bits");
-                    }
+                if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [INPUT: {IOElemType}]: {value})"); }
+                switch(DIbits.ByteCount) {
+                    case 2: return (uint)BitConverter.ToUInt16(DIbits.Data, 0);
+                    case 4: return (uint)BitConverter.ToUInt32(DIbits.Data, 0);
+                    default: throw new Exception("Invalid input bit count. Only supported 16 or 32 bits");
                 }
             }
         }
@@ -463,31 +455,17 @@ namespace LotusAPI.HW {
         public void WriteDO() {
             AssertConnected();
             lock(locker) {
-                if(IOElemType == ElementType.BitTags) {
-                    if(OutputTags == null) {
-                        DisconnectedEvent?.Invoke();
-                        IsConnected = false;
-                        throw new Exception("Output tag is null!");
-                    }
-                    foreach(var tag in OutputTags) {
-                        tag.Value.Write(DObits[tag.Key]);
-                    }
+                if(OutputTag == null) {
+                    DisconnectedEvent?.Invoke();
+                    IsConnected = false;
+                    throw new Exception("Output tag is null!");
                 }
-                else {
-                    if(OutputTag == null) {
-                        DisconnectedEvent?.Invoke();
-                        IsConnected = false;
-                        throw new Exception("Output tag is null!");
-                    }
-                    switch(IOElemType) {
-                        case ElementType.Int16: OutputTag.Value = BitConverter.ToInt16(DObits.Data, 0); break;
-                        case ElementType.UInt16: OutputTag.Value = BitConverter.ToUInt16(DObits.Data, 0); break;
-                        case ElementType.Int32: OutputTag.Value = BitConverter.ToInt32(DObits.Data, 0); break;
-                        case ElementType.UInt32: OutputTag.Value = BitConverter.ToUInt32(DObits.Data, 0); break;
-                    }
-                    if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [OUTPUT: {IOElemType}]: {OutputTag.Value})"); }
-                    OutputTag.Write();
+                switch(IOElemType) {
+                    case ElementType.Int16: OutputTag.Value = BitConverter.ToInt16(DObits.Data, 0); break;
+                    case ElementType.Int32: OutputTag.Value = BitConverter.ToInt32(DObits.Data, 0); break;
                 }
+                if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [OUTPUT: {IOElemType}]: {OutputTag.Value})"); }
+                OutputTag.Write();
             }
         }
 
@@ -511,9 +489,7 @@ namespace LotusAPI.HW {
                     var value = tag.Read();
                     switch(BlockElemType) {
                         case ElementType.Int16: pkt.AppendInt16((Int16)value); break;
-                        case ElementType.UInt16: pkt.AppendUInt16((UInt16)value); break;
                         case ElementType.Int32: pkt.AppendInt32((Int32)value); break;
-                        case ElementType.UInt32: pkt.AppendUInt32((UInt32)value); break;
                     }
                 }
                 bool changed = block.SetData(pkt.Buffer.ToArray(), 0);
@@ -542,9 +518,7 @@ namespace LotusAPI.HW {
                 foreach(var tag in tags) {
                     switch(BlockElemType) {
                         case ElementType.Int16: tag.Value = pkt.GetInt16(); break;
-                        case ElementType.UInt16: tag.Value = pkt.GetUInt16(); break;
                         case ElementType.Int32: tag.Value = pkt.GetInt32(); break;
-                        case ElementType.UInt32: tag.Value = pkt.GetUInt32(); break;
                     }
                     tag.Write();
                 }
