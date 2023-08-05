@@ -22,6 +22,7 @@ namespace LotusAPI.HW {
                 var setting = (PlcAB.MySetting)_plc.Setting;
                 var tags = new Tag<TagInfoPlcMapper, TagInfo[]>() {
                     Gateway = (string)setting.IP,
+                    Path = (string)setting.Path,
                     PlcType = setting.PlcType,
                     Protocol = setting.Protocol,
                     Name = "@tags"
