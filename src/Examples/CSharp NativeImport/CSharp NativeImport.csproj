@@ -4,8 +4,8 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
     <RootNamespace>NativeImport_Examples</RootNamespace>
-    <AssemblyVersion>1.23.0726.0321</AssemblyVersion>
-    <FileVersion>1.23.0726.0321</FileVersion>
+    <AssemblyVersion>1.23.0805.0004</AssemblyVersion>
+    <FileVersion>1.23.0805.0004</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

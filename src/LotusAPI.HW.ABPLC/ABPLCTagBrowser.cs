@@ -30,7 +30,7 @@ namespace LotusAPI.HW {
                 tags.Read();
                 DataTable dt = new DataTable();
                 dt.Columns.Add("ID", typeof(int));
-                dt.Columns.Add("TYPE", typeof(int));
+                dt.Columns.Add("TYPE", typeof(string));
                 dt.Columns.Add("NAME", typeof(string));
                 dt.Columns.Add("LENGTH", typeof(int));
                 dt.Columns.Add("DIMS", typeof(string));
