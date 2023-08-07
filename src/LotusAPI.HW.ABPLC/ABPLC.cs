@@ -355,13 +355,18 @@ namespace LotusAPI.HW {
                         //monitor bit
                         if(IOPolling) ReadDI();
 
+                        if(sw.ElapsedMilliseconds > 1000) {
+                            Logger.Error($"PLC[{Name}] DI took long time to read! ({sw.ElapsedMilliseconds}ms)");
+                        }
+
+                        sw.Restart();
                         //monitor block
                         foreach(var blk in MemoryBlocks) {
                             if(blk.Monitoring) ReadBlock(blk);
                         }
 
-                        if(sw.ElapsedMilliseconds > 1000) {
-                            Logger.Error($"PLC[{Name}] took long time to read! ({sw.ElapsedMilliseconds}ms)");
+                        if(sw.ElapsedMilliseconds > 5000) {
+                            Logger.Error($"PLC[{Name}] Block took long time to read! ({sw.ElapsedMilliseconds}ms)");
                         }
 
                     } catch(Exception ex) {
