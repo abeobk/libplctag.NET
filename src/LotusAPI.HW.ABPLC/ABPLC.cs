@@ -565,7 +565,7 @@ namespace LotusAPI.HW {
                 var elem_type = (block as AbPlcMemoryBlock).ElementType;
                 foreach(var tag in tags) {
                     switch(elem_type) {
-                        case ElementType.Int8: tag.Value = pkt.GetChar(); break;
+                        case ElementType.Int8: tag.Value = Convert.ToSByte(pkt.GetChar()); break;
                         case ElementType.Int16: tag.Value = pkt.GetInt16(); break;
                         case ElementType.Int32: tag.Value = pkt.GetInt32(); break;
                     }
