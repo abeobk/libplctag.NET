@@ -2,6 +2,11 @@
 
 namespace libplctag.DataTypes
 {
+    public class SBytePlcMapper : PlcMapperBase<sbyte> {
+        public override int? ElementSize => 1;
+        override public sbyte Decode(Tag tag, int offset) => tag.GetInt8(offset);
+        override public void Encode(Tag tag, int offset, sbyte value) => tag.SetInt8(offset, value);
+    }
     public class IntPlcMapper : PlcMapperBase<short>
     {
         public override int? ElementSize => 2;
