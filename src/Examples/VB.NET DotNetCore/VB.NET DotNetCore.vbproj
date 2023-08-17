@@ -4,8 +4,8 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>VB.NET_DotNetCore</RootNamespace>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyVersion>1.23.0816.0816</AssemblyVersion>
-    <FileVersion>1.23.0816.0816</FileVersion>
+    <AssemblyVersion>1.23.0817.0128</AssemblyVersion>
+    <FileVersion>1.23.0817.0128</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

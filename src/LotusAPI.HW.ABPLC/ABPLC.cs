@@ -26,12 +26,13 @@ using LibPLC = libplctag;
 namespace LotusAPI.HW {
     public class PlcAB : PLCBase {
         public enum ElementType {
-            Int8 =0,
+            Int8 = 0,
             Int16,
             Int32,
         }
 
-        public class AbPlcMemoryBlock:MemoryBlock {
+        public class AbPlcMemoryBlock : MemoryBlock {
+            [Category("DATA")]
             public ElementType ElementType { get; set; } = ElementType.Int16;
         }
         public class AbPlcMemoryBlockListEditor : UITypeEditor {
@@ -40,15 +41,12 @@ namespace LotusAPI.HW {
             }
             public override object EditValue(ITypeDescriptorContext context, IServiceProvider provider, object value) {
                 //show openfile dialog
-                var list = (value as List<AbPlcMemoryBlock>).ConvertAll(b=>b as IPLC.MemoryBlock);
+                var list = (value as List<AbPlcMemoryBlock>).ConvertAll(b => b as object);
 
-                var f = new FormMemoryBlockListEditor(list);
+                var f = new FormMemoryBlockListEditor(typeof(AbPlcMemoryBlock), list);
                 f.ShowDialog();
                 if(f.DialogResult == System.Windows.Forms.DialogResult.OK) {
-                    //var jblocks = JsonUtils.ToJson(f.MemoryBlocks);
-                    //var blocks = JsonUtils.Read<List<IPLC.MemoryBlock>>(jblocks);
-                    //return blocks;
-                    return f.MemoryBlocks.ConvertAll(b=>b as AbPlcMemoryBlock);
+                    return f.MemoryBlocks.ConvertAll(b => b as AbPlcMemoryBlock);
                 }
                 return value;
             }
@@ -59,7 +57,7 @@ namespace LotusAPI.HW {
             public Property_<LibPLC.PlcType> PlcType { get; } = new Property_<LibPLC.PlcType>(LibPLC.PlcType.ControlLogix, "GENERAL", WriteProtectionType.AskForPermission);
             public Property_<LibPLC.Protocol> Protocol { get; } = new Property_<LibPLC.Protocol>(LibPLC.Protocol.ab_eip, "GENERAL", WriteProtectionType.AskForPermission);
             public Property_<ElementType> IOElemType { get; } = new Property_<ElementType>(ElementType.Int32, "IO", WriteProtectionType.AskForPermission);
-           // public Property_<ElementType> BlockElemType { get; } = new Property_<ElementType>(ElementType.Int32, "IO", WriteProtectionType.AskForPermission);
+            // public Property_<ElementType> BlockElemType { get; } = new Property_<ElementType>(ElementType.Int32, "IO", WriteProtectionType.AskForPermission);
             public Property_<bool> IOPolling { get; } = new Property_<bool>(true, "IO", WriteProtectionType.AskForPermission);
             public Property_<string> InputDevice { get; } = new Property_<string>("", "IO", WriteProtectionType.AskForPermission);
             public Property_<string> OutputDevice { get; } = new Property_<string>("", "IO", WriteProtectionType.AskForPermission);
@@ -82,7 +80,7 @@ namespace LotusAPI.HW {
         }
 
         ElementType IOElemType => ((MySetting)Setting).IOElemType;
-       // ElementType BlockElemType => ((MySetting)Setting).BlockElemType;
+        // ElementType BlockElemType => ((MySetting)Setting).BlockElemType;
         string IP => ((MySetting)Setting).IP;
         string Path => ((MySetting)Setting).Path;
         LibPLC.PlcType PlcType => ((MySetting)Setting).PlcType;
@@ -95,7 +93,7 @@ namespace LotusAPI.HW {
         int ReconnectInterval => ((MySetting)Setting).ReconnectInterval;
         //int ConnectionLingerTimeout => ((MySetting)Setting).ConnectingLingerTimeout;
         bool IOPolling => ((MySetting)Setting).IOPolling;
-        public override List<IPLC.MemoryBlock> MemoryBlocks => (((MySetting)Setting).MemoryBlocks.Value as List<AbPlcMemoryBlock>).ConvertAll(b=>b as IPLC.MemoryBlock);
+        public override List<IPLC.MemoryBlock> MemoryBlocks => (((MySetting)Setting).MemoryBlocks.Value as List<AbPlcMemoryBlock>).ConvertAll(b => b as IPLC.MemoryBlock);
 
         Dictionary<int, Tag<BoolPlcMapper, bool>> _CreateTags(PinFunc func, string addr) {
             var pins = PinMap.Pins.FindAll(p => p.Function == func && p.Index >= 0 && p.Index < 32);
@@ -118,7 +116,7 @@ namespace LotusAPI.HW {
         }
 
 
-        class TagSByteArr: TagSint1D{
+        class TagSByteArr : TagSint1D {
             public bool IsArray => true;
             public int Length { get; set; } = 0;
         }
@@ -146,7 +144,7 @@ namespace LotusAPI.HW {
             if(is_array) {
                 switch(elem_type) {
                     case ElementType.Int8:
-                        tag = new TagSByteArr{ Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
+                        tag = new TagSByteArr { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
                         break;
                     case ElementType.Int16:
                         tag = new TagInt16Arr { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
@@ -225,7 +223,7 @@ namespace LotusAPI.HW {
                         }
                     }
                 }
-                else { 
+                else {
                     tags.Add(_CreateTag(elem_type, addr));
                 }
             }
@@ -539,7 +537,7 @@ namespace LotusAPI.HW {
                 }
 
                 bool changed = block.SetData(pkt.Buffer.ToArray(), 0);
-                
+
                 if(changed) {
                     MemoryBlockChangedEvent?.Invoke(block.Clone());
                 }

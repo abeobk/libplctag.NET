@@ -95,6 +95,6 @@
   </Target>
   <PropertyGroup>
     <PostBuildEvent>xcopy /y /f  "$(OutDir)\$(TargetName)$(TargetExt)" "D:\DEPLOYS\Lotus"
-xcopy /y /f  "$(OutDir)\$(TargetName).xml" "D:\DEPLOYS\Lotus"</PostBuildEvent>
+</PostBuildEvent>
   </PropertyGroup>
 </Project>
