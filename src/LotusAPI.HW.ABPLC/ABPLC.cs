@@ -156,18 +156,20 @@ namespace LotusAPI.HW {
                         throw new Exception($"Invalid data type ({elem_type})");
                 }
             }
-            switch(elem_type) {
-                case ElementType.Int8:
-                    tag = new Tag<SBytePlcMapper, sbyte>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                    break;
-                case ElementType.Int16:
-                    tag = new Tag<Int16Mapper, Int16>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                    break;
-                case ElementType.Int32:
-                    tag = new Tag<Int32Mapper, Int32>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
-                    break;
-                default:
-                    throw new Exception($"Invalid data type ({elem_type})");
+            else {
+                switch(elem_type) {
+                    case ElementType.Int8:
+                        tag = new Tag<SBytePlcMapper, sbyte>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
+                        break;
+                    case ElementType.Int16:
+                        tag = new Tag<Int16Mapper, Int16>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
+                        break;
+                    case ElementType.Int32:
+                        tag = new Tag<Int32Mapper, Int32>() { Name = addr, Gateway = this.IP, Path = this.Path, PlcType = this.PlcType, Protocol = this.Protocol, Timeout = TimeSpan.FromMilliseconds(this.Timeout), };
+                        break;
+                    default:
+                        throw new Exception($"Invalid data type ({elem_type})");
+                }
             }
             Logger.Debug($"Initializing tag [{elem_type}: {addr}]");
             tag?.Initialize();
