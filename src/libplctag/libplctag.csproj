@@ -15,8 +15,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageProjectUrl>https://github.com/libplctag/libplctag.NET</PackageProjectUrl>
     <PackageTags></PackageTags>
-    <AssemblyVersion>1.24.0516.0225</AssemblyVersion>
-    <FileVersion>1.24.0516.0225</FileVersion>
+    <AssemblyVersion>1.24.0516.0234</AssemblyVersion>
+    <FileVersion>1.24.0516.0234</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
