@@ -29,6 +29,7 @@ namespace LotusAPI.HW {
             Int8 = 0,
             Int16,
             Int32,
+            Int64,
         }
 
         public class AbPlcMemoryBlock : MemoryBlock {
@@ -470,7 +471,7 @@ namespace LotusAPI.HW {
             while(!Paused) { Thread.Sleep(50); }
         }
 
-        public override uint ReadDI() {
+        public override UInt64 ReadDI() {
             AssertConnected();
             lock(locker) {
                 if(InputTag == null) {
@@ -484,12 +485,14 @@ namespace LotusAPI.HW {
                 switch(IOElemType) {
                     case ElementType.Int16: DIbits.Data = BitConverter.GetBytes((Int16)value); break;
                     case ElementType.Int32: DIbits.Data = BitConverter.GetBytes((Int32)value); break;
+                    case ElementType.Int64: DIbits.Data = BitConverter.GetBytes((Int64)value); break;
                 }
 
                 if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [INPUT: {IOElemType}]: {value})"); }
                 switch(DIbits.ByteCount) {
-                    case 2: return (uint)BitConverter.ToUInt16(DIbits.Data, 0);
-                    case 4: return (uint)BitConverter.ToUInt32(DIbits.Data, 0);
+                    case 2: return (UInt64)BitConverter.ToUInt16(DIbits.Data, 0);
+                    case 4: return (UInt64)BitConverter.ToUInt32(DIbits.Data, 0);
+                    case 8: return (UInt64)BitConverter.ToUInt64(DIbits.Data, 0);
                     default: throw new Exception("Invalid input bit count. Only supported 16 or 32 bits");
                 }
             }
@@ -506,13 +509,14 @@ namespace LotusAPI.HW {
                 switch(IOElemType) {
                     case ElementType.Int16: OutputTag.Value = BitConverter.ToInt16(DObits.Data, 0); break;
                     case ElementType.Int32: OutputTag.Value = BitConverter.ToInt32(DObits.Data, 0); break;
+                    case ElementType.Int64: OutputTag.Value = BitConverter.ToInt64(DObits.Data, 0); break;
                 }
                 if(Debug) { Logger.Debug($"PLC[{Name}] PLC->PC [OUTPUT: {IOElemType}]: {OutputTag.Value})"); }
                 OutputTag.Write();
             }
         }
 
-        public override void WriteDO(uint values) {
+        public override void WriteDO(UInt64 values) {
             DObits.Data = BitConverter.GetBytes(values);
             WriteDO();
         }
@@ -535,6 +539,7 @@ namespace LotusAPI.HW {
                         case ElementType.Int8: pkt.AppendChar(Convert.ToChar((sbyte)value)); break;
                         case ElementType.Int16: pkt.AppendInt16((Int16)value); break;
                         case ElementType.Int32: pkt.AppendInt32((Int32)value); break;
+                        case ElementType.Int64: pkt.AppendInt64((Int64)value); break;
                     }
                 }
 
@@ -568,6 +573,7 @@ namespace LotusAPI.HW {
                         case ElementType.Int8: tag.Value = Convert.ToSByte(pkt.GetChar()); break;
                         case ElementType.Int16: tag.Value = pkt.GetInt16(); break;
                         case ElementType.Int32: tag.Value = pkt.GetInt32(); break;
+                        case ElementType.Int64: tag.Value = pkt.GetInt64(); break;
                     }
                     tag.Write();
                 }
